@@ -20,6 +20,10 @@
             max-width: 600px;
             margin: 20px auto;
         }
+        h1 {
+            color: #0056b3;
+            text-align: center;
+        }
         h2 {
             color: #0056b3;
             border-bottom: 2px solid #eee;
@@ -28,16 +32,20 @@
         }
         .button-group {
             margin-bottom: 20px;
+            display: flex; /* 讓按鈕排成一行 */
+            flex-wrap: wrap; /* 讓按鈕在空間不足時換行 */
+            gap: 10px; /* 按鈕間距 */
         }
         .button-group button {
             background-color: #007bff;
             color: white;
-            padding: 10px 15px;
+            padding: 12px 20px;
             border: none;
             border-radius: 5px;
             cursor: pointer;
             font-size: 16px;
-            margin-right: 10px;
+            flex-grow: 1; /* 讓按鈕在 flex 容器中自動伸展 */
+            min-width: 100px; /* 最小寬度避免過小 */
             transition: background-color 0.3s ease;
         }
         .button-group button:hover {
@@ -50,25 +58,26 @@
             background-color: #e9ecef;
             color: #495057;
             font-size: 14px;
+            word-wrap: break-word; /* 防止長文字溢出 */
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>MQTT 控制面板</h1>
+        <h1>阿鼠餵食器</h1>
         <div class="status" id="status">正在嘗試連接到 MQTT Broker...</div>
 
-        ---
+        <hr>
 
-        <h2>燈光控制 (/malo/esp/light)</h2>
+        <h2>燈光控制 (`/malo/esp/light`)</h2>
         <div class="button-group">
             <button onclick="sendMessage('/malo/esp/light', '1')">ON</button>
             <button onclick="sendMessage('/malo/esp/light', '0')">OFF</button>
         </div>
 
-        ---
+        <hr>
 
-        <h2>模式控制 (/malo/esp/mode)</h2>
+        <h2>模式控制 (`/malo/esp/mode`)</h2>
         <div class="button-group">
             <button onclick="sendMessage('/malo/esp/mode', '0')">原點</button>
             <button onclick="sendMessage('/malo/esp/mode', '1')">第一天</button>
@@ -81,27 +90,25 @@
     <script>
         // MQTT Broker 設定
         const brokerHost = "broker.hivemq.com";
-        // *** 關鍵修改：將埠號改為 8884 (WSS 埠號) ***
-        const brokerPort = 8884; 
-        const clientId = "web_client_" + parseInt(Math.random() * 100000); 
+        const brokerPort = 8884; // WebSocket SSL/TLS 埠號 (WSS)
+        const clientId = "web_client_" + parseInt(Math.random() * 100000); // 隨機生成 Client ID
 
         let client;
         let statusDiv = document.getElementById("status");
 
         function connectToBroker() {
             // 初始化 MQTT 客戶端
-            client = new Paho.Client(brokerHost, brokerPort, clientId); 
+            client = new Paho.Client(brokerHost, brokerPort, clientId);
 
             // 設定回呼函數
             client.onConnectionLost = onConnectionLost;
-            client.onMessageArrived = onMessageArrived; 
+            client.onMessageArrived = onMessageArrived;
 
             // 連接到 Broker
             client.connect({
                 onSuccess: onConnect,
                 onFailure: onFailure,
-                // *** 關鍵修改：設置 useSSL 為 true ***
-                useSSL: true 
+                useSSL: true // 啟用 SSL/TLS 加密
             });
         }
 
@@ -124,11 +131,12 @@
             if (responseObject.errorCode !== 0) {
                 console.log("連接已斷開: " + responseObject.errorMessage);
                 statusDiv.textContent = "狀態：連接已斷開 - " + responseObject.errorMessage + "。正在嘗試重新連接...";
+                // 3 秒後重試連接
                 setTimeout(connectToBroker, 3000); 
             }
         }
 
-        // 接收到訊息時的回呼函數
+        // 接收到訊息時的回呼函數 (目前這個應用程式沒有訂閱任何主題，所以此函數不會觸發)
         function onMessageArrived(message) {
             console.log("接收到訊息 - 主題: " + message.destinationName + ", 內容: " + message.payloadString);
         }
@@ -140,6 +148,7 @@
                 console.warn("未連接到 MQTT Broker，無法發送訊息。");
                 return;
             }
+            // 創建 MQTT 訊息
             const message = new Paho.Message(payload); 
             message.destinationName = topic;
             try {
