@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>阿鼠餵食器</title>
+    <script src="https://cdn.jsdelivr.net/npm/paho-mqtt@1.1.0/paho-mqtt.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f4f4f4;
+            color: #333;
+        }
+        .container {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            max-width: 600px;
+            margin: 20px auto;
+        }
+        h2 {
+            color: #0056b3;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+        .button-group {
+            margin-bottom: 20px;
+        }
+        .button-group button {
+            background-color: #007bff;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-right: 10px;
+            transition: background-color 0.3s ease;
+        }
+        .button-group button:hover {
+            background-color: #0056b3;
+        }
+        .status {
+            margin-top: 20px;
+            padding: 10px;
+            border-radius: 5px;
+            background-color: #e9ecef;
+            color: #495057;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>MQTT 控制面板</h1>
+        <div class="status" id="status">正在嘗試連接到 MQTT Broker...</div>
+
+        ---
+
+        <h2>燈光控制 (/malo/esp/light)</h2>
+        <div class="button-group">
+            <button onclick="sendMessage('/malo/esp/light', '1')">ON</button>
+            <button onclick="sendMessage('/malo/esp/light', '0')">OFF</button>
+        </div>
+
+        ---
+
+        <h2>模式控制 (/malo/esp/mode)</h2>
+        <div class="button-group">
+            <button onclick="sendMessage('/malo/esp/mode', '0')">原點</button>
+            <button onclick="sendMessage('/malo/esp/mode', '1')">第一天</button>
+            <button onclick="sendMessage('/malo/esp/mode', '2')">第二天</button>
+            <button onclick="sendMessage('/malo/esp/mode', '3')">第三天</button>
+            <button onclick="sendMessage('/malo/esp/mode', '4')">第四天</button>
+        </div>
+    </div>
+
+    <script>
+        // MQTT Broker 設定
+        const brokerHost = "broker.hivemq.com";
+        // *** 關鍵修改：將埠號改為 8884 (WSS 埠號) ***
+        const brokerPort = 8884; 
+        const clientId = "web_client_" + parseInt(Math.random() * 100000); 
+
+        let client;
+        let statusDiv = document.getElementById("status");
+
+        function connectToBroker() {
+            // 初始化 MQTT 客戶端
+            client = new Paho.Client(brokerHost, brokerPort, clientId); 
+
+            // 設定回呼函數
+            client.onConnectionLost = onConnectionLost;
+            client.onMessageArrived = onMessageArrived; 
+
+            // 連接到 Broker
+            client.connect({
+                onSuccess: onConnect,
+                onFailure: onFailure,
+                // *** 關鍵修改：設置 useSSL 為 true ***
+                useSSL: true 
+            });
+        }
+
+        // 連接成功時的回呼函數
+        function onConnect() {
+            console.log("已成功連接到 MQTT Broker.");
+            statusDiv.textContent = "狀態：已連接到 MQTT Broker。";
+        }
+
+        // 連接失敗時的回呼函數
+        function onFailure(responseObject) {
+            if (responseObject.errorCode !== 0) {
+                console.log("連接失敗: " + responseObject.errorMessage);
+                statusDiv.textContent = "狀態：連接失敗 - " + responseObject.errorMessage + "。請檢查網路或Broker狀態。";
+            }
+        }
+
+        // 連接斷開時的回呼函數
+        function onConnectionLost(responseObject) {
+            if (responseObject.errorCode !== 0) {
+                console.log("連接已斷開: " + responseObject.errorMessage);
+                statusDiv.textContent = "狀態：連接已斷開 - " + responseObject.errorMessage + "。正在嘗試重新連接...";
+                setTimeout(connectToBroker, 3000); 
+            }
+        }
+
+        // 接收到訊息時的回呼函數
+        function onMessageArrived(message) {
+            console.log("接收到訊息 - 主題: " + message.destinationName + ", 內容: " + message.payloadString);
+        }
+
+        // 發送 MQTT 訊息
+        function sendMessage(topic, payload) {
+            if (!client || !client.isConnected()) {
+                statusDiv.textContent = "狀態：未連接到 MQTT Broker，無法發送訊息。";
+                console.warn("未連接到 MQTT Broker，無法發送訊息。");
+                return;
+            }
+            const message = new Paho.Message(payload); 
+            message.destinationName = topic;
+            try {
+                client.send(message);
+                console.log(`訊息已發送 - 主題: ${topic}, 內容: ${payload}`);
+                statusDiv.textContent = `狀態：已發送訊息 - 主題: ${topic}, 內容: ${payload}`;
+            } catch (e) {
+                console.error("發送訊息時發生錯誤:", e);
+                statusDiv.textContent = `狀態：發送訊息時發生錯誤 - ${e.message}`;
+            }
+        }
+
+        // 頁面載入完成後連接到 Broker
+        window.onload = connectToBroker;
+    </script>
+</body>
+</html>
